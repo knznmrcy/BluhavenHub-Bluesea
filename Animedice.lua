@@ -1,9 +1,27 @@
 -- BluhavenHub | Anime Dice
--- WindUI Ocean Theme
+-- WindUI Ocean Theme + Custom Icon
 
 local WindUI = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
 ))()
+
+local ICON = "rbxassetid://71760811781401"
+
+-- ═══════════════════════════════════
+-- THEME OCEAN
+-- ═══════════════════════════════════
+pcall(function()
+    WindUI:AddTheme({
+        Name = "Ocean",
+        Accent = Color3.fromHex("#2b5e9c"),
+        Background = Color3.fromHex("#0a1a33"),
+        Outline = Color3.fromHex("#3b7dd8"),
+        Text = Color3.fromHex("#ffffff"),
+        Placeholder = Color3.fromHex("#7a7a7a"),
+        Button = Color3.fromHex("#1e3a5f"),
+        Icon = Color3.fromHex("#a1a1aa"),
+    })
+end)
 
 -- Services
 local Players = game:GetService("Players")
@@ -11,6 +29,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 
 local LP = Players.LocalPlayer
 local Character = LP.Character or LP.CharacterAdded:Wait()
@@ -45,26 +64,10 @@ local State = {
 -- ═══════════════════════════════════
 local Network = ReplicatedStorage:WaitForChild("Network")
 
-local RollRemote = Network
-    :WaitForChild("RollService")
-    :WaitForChild("RF")
-    :WaitForChild("RollDice")
-
-local EquipBestRemote = Network
-    :WaitForChild("PlotService")
-    :WaitForChild("RE")
-    :WaitForChild("EquipBest")
-
-local LevelUpSlotRemote = Network
-    :WaitForChild("PlotService")
-    :WaitForChild("RE")
-    :WaitForChild("LevelUpSlot")
-
-local BuyDiceRemote = Network
-    :WaitForChild("DiceShopService")
-    :WaitForChild("RE")
-    :WaitForChild("BuyDice")
-
+local RollRemote = Network:WaitForChild("RollService"):WaitForChild("RF"):WaitForChild("RollDice")
+local EquipBestRemote = Network:WaitForChild("PlotService"):WaitForChild("RE"):WaitForChild("EquipBest")
+local LevelUpSlotRemote = Network:WaitForChild("PlotService"):WaitForChild("RE"):WaitForChild("LevelUpSlot")
+local BuyDiceRemote = Network:WaitForChild("DiceShopService"):WaitForChild("RE"):WaitForChild("BuyDice")
 local TowerService = Network:WaitForChild("Towers")
 local EquipBestTowerRemote = TowerService:WaitForChild("RE"):WaitForChild("EquipBestTowerTeam")
 local PlayTowerRemote = TowerService:WaitForChild("RF"):WaitForChild("PlayTower")
@@ -79,21 +82,17 @@ local ALL_DICE = {
     "Solar", "Lunar", "Galaxy", "Black Hole",
     "Blood Moon", "Void"
 }
-
 local TOTAL_SLOTS = 4
 
 -- ═══════════════════════════════════
 -- FUNCTIONS
 -- ═══════════════════════════════════
-
--- Roll
 local function doRoll()
     pcall(function() RollRemote:InvokeServer() end)
 end
 
 local function hybridRoll()
-    local btn = LP.PlayerGui:FindFirstChild("RollButton", true)
-        or LP.PlayerGui:FindFirstChild("Roll", true)
+    local btn = LP.PlayerGui:FindFirstChild("RollButton", true) or LP.PlayerGui:FindFirstChild("Roll", true)
     if btn and btn:IsA("GuiButton") then
         btn.MouseButton1Click:Fire()
     else
@@ -101,12 +100,10 @@ local function hybridRoll()
     end
 end
 
--- Equip Best
 local function doEquipBest()
     pcall(function() EquipBestRemote:FireServer() end)
 end
 
--- Level Up All Slots
 local function doLevelUpAllSlots()
     for slot = 1, TOTAL_SLOTS do
         if not State.AutoLevelSlots then break end
@@ -115,7 +112,6 @@ local function doLevelUpAllSlots()
     end
 end
 
--- Buy Dice
 local function doAutoBuyDice()
     for _, diceName in ipairs(ALL_DICE) do
         if not State.AutoBuyDice then break end
@@ -126,7 +122,6 @@ local function doAutoBuyDice()
     end
 end
 
--- Tower
 local function doEquipBestTower()
     pcall(function() EquipBestTowerRemote:FireServer() end)
 end
@@ -183,7 +178,6 @@ local function createAura(target, fillColor, outlineColor, label, transparency)
 end
 
 local function updateESP()
-    -- Unit ESP
     if State.UnitESP then
         local units = Workspace:FindFirstChild("Units", true)
         if units then
@@ -194,8 +188,6 @@ local function updateESP()
             end
         end
     end
-
-    -- Plot ESP
     if State.PlotESP then
         local plots = Workspace:FindFirstChild("Plots", true)
         if plots then
@@ -208,8 +200,6 @@ local function updateESP()
             end
         end
     end
-
-    -- Player ESP
     if State.PlayerESP then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP and plr.Character then
@@ -217,7 +207,6 @@ local function updateESP()
             end
         end
     end
-
     if not State.UnitESP and not State.PlotESP and not State.PlayerESP then
         clearESP()
     end
@@ -226,8 +215,6 @@ end
 -- ═══════════════════════════════════
 -- LOOPS
 -- ═══════════════════════════════════
-
--- Auto Roll
 task.spawn(function()
     while true do
         if State.HybridAutoRoll then
@@ -242,37 +229,27 @@ task.spawn(function()
     end
 end)
 
--- Auto Equip Best
 task.spawn(function()
     while true do
-        if State.AutoEquipDice or State.AutoEquipUnits then
-            doEquipBest()
-        end
+        if State.AutoEquipDice or State.AutoEquipUnits then doEquipBest() end
         task.wait(3)
     end
 end)
 
--- Auto Level Slots
 task.spawn(function()
     while true do
-        if State.AutoLevelSlots then
-            doLevelUpAllSlots()
-        end
+        if State.AutoLevelSlots then doLevelUpAllSlots() end
         task.wait(1.5)
     end
 end)
 
--- Auto Buy Dice
 task.spawn(function()
     while true do
-        if State.AutoBuyDice then
-            doAutoBuyDice()
-        end
+        if State.AutoBuyDice then doAutoBuyDice() end
         task.wait(2)
     end
 end)
 
--- Auto Tower + Fight
 task.spawn(function()
     while true do
         if State.AutoFight then
@@ -287,19 +264,14 @@ task.spawn(function()
     end
 end)
 
--- ESP Loop
-RunService.Heartbeat:Connect(function()
-    updateESP()
-end)
+RunService.Heartbeat:Connect(function() updateESP() end)
 
--- Infinite Jump
 UserInputService.JumpRequest:Connect(function()
     if State.InfiniteJump and Humanoid then
         Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
     end
 end)
 
--- NoClip
 RunService.Stepped:Connect(function()
     if State.NoClip and Character then
         for _, p in ipairs(Character:GetDescendants()) do
@@ -310,7 +282,6 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Respawn update
 LP.CharacterAdded:Connect(function(char)
     Character = char
     HRP = char:WaitForChild("HumanoidRootPart")
@@ -318,93 +289,108 @@ LP.CharacterAdded:Connect(function(char)
 end)
 
 -- ═══════════════════════════════════
--- WINDUI
+-- WINDUI WINDOW (OCEAN THEME)
 -- ═══════════════════════════════════
 local Window = WindUI:CreateWindow({
     Title = "BluhavenHub",
-    Icon = "dices",
+    Icon = ICON,
     Author = "Bluhaven",
     Folder = "BluhavenHub",
-    Size = UDim2.fromOffset(580, 460),
+    Size = UDim2.fromOffset(440, 315),
     Transparent = true,
     Theme = "Ocean",
-    DisableWindUI = false,
+    User = { Enabled = true, Anonymous = false },
+    SideBarWidth = 160,
+    HasOutline = true,
+    HideButton = false,
+    MinimizeButton = true,
 })
 
-Window:Intro({
-    Title = "BluhavenHub",
-    Description = "Anime Dice Script",
-    Icon = "dices",
-})
+-- Hapus watermark Eulen
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            local containers = {CoreGui}
+            if gethui then
+                local ok, hui = pcall(gethui)
+                if ok and hui then table.insert(containers, hui) end
+            end
+            pcall(function()
+                if LP then table.insert(containers, LP:WaitForChild("PlayerGui")) end
+            end)
+            for _, container in pairs(containers) do
+                for _, gui in pairs(container:GetChildren()) do
+                    if gui.Name:lower():find("bluhaven") then continue end
+                    if gui.Name:lower():find("windui") then continue end
+                    for _, obj in pairs(gui:GetDescendants()) do
+                        if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("ImageLabel") then
+                            local t = (obj.Text or ""):lower()
+                            local n = obj.Name:lower()
+                            if t:find("eulen") or n:find("eulen") or n:find("watermark") then
+                                obj:Destroy()
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
 
 -- ═══════════════════════════════════
 -- TAB: ROLL
 -- ═══════════════════════════════════
-local TabRoll = Window:Tab({
-    Title = "Roll",
-    Icon = "dices",
-})
-
-local SectRoll = TabRoll:Section({ Title = "Auto Roll" })
+local TabRoll = Window:Tab({ Title = "Roll", Icon = ICON })
+local SectRoll = TabRoll:Section({ Title = "Auto Roll", Icon = ICON })
 
 SectRoll:Toggle({
     Title = "Hybrid Auto Roll",
-    Description = "GUI click + server fallback",
-    Default = false,
+    Desc = "GUI click + server fallback",
+    Value = false,
     Callback = function(v) State.HybridAutoRoll = v end,
 })
-
 SectRoll:Toggle({
     Title = "Server-Sided Auto Roll",
-    Description = "Pure server invoke",
-    Default = false,
+    Desc = "Pure server invoke",
+    Value = false,
     Callback = function(v) State.ServerAutoRoll = v end,
 })
-
 SectRoll:Slider({
     Title = "Roll Delay",
-    Description = "Delay antar roll (detik)",
-    Min = 0.05,
-    Max = 3,
-    Default = 0.5,
-    Decimals = 2,
+    Desc = "Delay antar roll (detik)",
+    Value = { Min = 0.05, Max = 3, Default = 0.5 },
+    Rounding = 2,
     Callback = function(v) State.RollDelay = v end,
 })
-
 SectRoll:Button({
     Title = "Manual Instant Roll",
-    Description = "Roll sekali langsung",
+    Desc = "Roll sekali langsung",
     Callback = function() doRoll() end,
 })
 
 -- ═══════════════════════════════════
 -- TAB: DICE
 -- ═══════════════════════════════════
-local TabDice = Window:Tab({
-    Title = "Dice",
-    Icon = "box",
-})
-
-local SectDice = TabDice:Section({ Title = "Dice Management" })
+local TabDice = Window:Tab({ Title = "Dice", Icon = ICON })
+local SectDice = TabDice:Section({ Title = "Dice Management", Icon = ICON })
 
 SectDice:Toggle({
     Title = "Auto Buy Best Affordable Dice",
-    Description = "Beli semua dice yang ada",
-    Default = false,
+    Desc = "Beli semua dice yang ada",
+    Value = false,
     Callback = function(v) State.AutoBuyDice = v end,
 })
-
 SectDice:Toggle({
     Title = "Auto Equip Best Dice",
-    Description = "Equip dice terkuat otomatis",
-    Default = false,
+    Desc = "Equip dice terkuat otomatis",
+    Value = false,
     Callback = function(v) State.AutoEquipDice = v end,
 })
-
 SectDice:Input({
     Title = "Dice Allowlist",
-    Description = "Pisah dengan koma. Kosongin = beli semua",
+    Desc = "Pisah dengan koma. Kosongin = beli semua",
     Placeholder = "Void,Blood Moon,Galaxy",
+    Value = "",
     Callback = function(v)
         State.DiceAllowlist = {}
         for name in v:gmatch("[^,]+") do
@@ -416,75 +402,62 @@ SectDice:Input({
 -- ═══════════════════════════════════
 -- TAB: UNITS
 -- ═══════════════════════════════════
-local TabUnits = Window:Tab({
-    Title = "Units",
-    Icon = "sword",
-})
-
-local SectUnits = TabUnits:Section({ Title = "Unit Management" })
+local TabUnits = Window:Tab({ Title = "Units", Icon = ICON })
+local SectUnits = TabUnits:Section({ Title = "Unit Management", Icon = ICON })
 
 SectUnits:Toggle({
     Title = "Auto Equip Best Units",
-    Description = "Equip unit terkuat otomatis",
-    Default = false,
+    Desc = "Equip unit terkuat otomatis",
+    Value = false,
     Callback = function(v) State.AutoEquipUnits = v end,
 })
-
 SectUnits:Toggle({
     Title = "Auto Level Occupied Slots",
-    Description = "Level up slot 1-4 otomatis",
-    Default = false,
+    Desc = "Level up slot 1-4 otomatis",
+    Value = false,
     Callback = function(v) State.AutoLevelSlots = v end,
 })
-
 SectUnits:Button({
     Title = "Manual Level Up All Slots",
-    Description = "Level up semua slot sekali",
+    Desc = "Level up semua slot sekali",
     Callback = function() doLevelUpAllSlots() end,
 })
 
 -- ═══════════════════════════════════
--- TAB: TOWER & FIGHT
+-- TAB: TOWER
 -- ═══════════════════════════════════
-local TabTower = Window:Tab({
-    Title = "Tower",
-    Icon = "castle",
-})
-
-local SectTower = TabTower:Section({ Title = "Tower & Fight" })
+local TabTower = Window:Tab({ Title = "Tower", Icon = ICON })
+local SectTower = TabTower:Section({ Title = "Tower & Fight", Icon = ICON })
 
 SectTower:Toggle({
     Title = "Auto Equip Best Tower Team",
-    Description = "Equip team tower terkuat sebelum fight",
-    Default = false,
+    Desc = "Equip team tower terkuat sebelum fight",
+    Value = false,
     Callback = function(v) State.AutoEquipBestTower = v end,
 })
-
 SectTower:Toggle({
     Title = "Auto Fight",
-    Description = "Loop fight otomatis",
-    Default = false,
+    Desc = "Loop fight otomatis",
+    Value = false,
     Callback = function(v) State.AutoFight = v end,
 })
-
 SectTower:Input({
     Title = "Tower Name",
-    Description = "Nama tower yang mau difight",
+    Desc = "Nama tower yang mau difight",
     Placeholder = "Slayer Tower",
+    Value = "Slayer Tower",
     Callback = function(v)
         if v ~= "" then State.SelectedTower = v end
     end,
 })
-
 SectTower:Button({
     Title = "Manual Equip Best Tower",
-    Description = "Equip team tower sekali",
+    Desc = "Equip team tower sekali",
     Callback = function() doEquipBestTower() end,
 })
-
 SectTower:Button({
     Title = "Manual Fight Once",
-    Description = "Fight sekali langsung",
+    Desc = "Fight sekali langsung",
     Callback = function()
         doEquipBestTower()
         task.wait(0.3)
@@ -495,37 +468,31 @@ SectTower:Button({
 -- ═══════════════════════════════════
 -- TAB: ESP
 -- ═══════════════════════════════════
-local TabESP = Window:Tab({
-    Title = "ESP",
-    Icon = "eye",
-})
-
-local SectESP = TabESP:Section({ Title = "ESP Aura" })
+local TabESP = Window:Tab({ Title = "ESP", Icon = ICON })
+local SectESP = TabESP:Section({ Title = "ESP Aura", Icon = ICON })
 
 SectESP:Toggle({
     Title = "Unit ESP",
-    Description = "Aura hijau pada semua unit",
-    Default = false,
+    Desc = "Aura hijau pada semua unit",
+    Value = false,
     Callback = function(v)
         State.UnitESP = v
         if not v then clearESP() end
     end,
 })
-
 SectESP:Toggle({
     Title = "Plot ESP",
-    Description = "Aura kuning pada semua plot",
-    Default = false,
+    Desc = "Aura kuning pada semua plot",
+    Value = false,
     Callback = function(v)
         State.PlotESP = v
         if not v then clearESP() end
     end,
 })
-
 SectESP:Toggle({
     Title = "Player ESP",
-    Description = "Aura merah pada semua player",
-    Default = false,
+    Desc = "Aura merah pada semua player",
+    Value = false,
     Callback = function(v)
         State.PlayerESP = v
         if not v then clearESP() end
@@ -535,25 +502,29 @@ SectESP:Toggle({
 -- ═══════════════════════════════════
 -- TAB: MOVEMENT
 -- ═══════════════════════════════════
-local TabMove = Window:Tab({
-    Title = "Movement",
-    Icon = "footprints",
-})
-
-local SectMove = TabMove:Section({ Title = "Movement" })
+local TabMove = Window:Tab({ Title = "Movement", Icon = ICON })
+local SectMove = TabMove:Section({ Title = "Movement", Icon = ICON })
 
 SectMove:Toggle({
     Title = "Infinite Jump",
-    Description = "Lompat terus tanpa batas",
-    Default = false,
+    Desc = "Lompat terus tanpa batas",
+    Value = false,
     Callback = function(v) State.InfiniteJump = v end,
 })
-
 SectMove:Toggle({
     Title = "NoClip",
-    Description = "Tembus semua objek",
-    Default = false,
+    Desc = "Tembus semua objek",
+    Value = false,
     Callback = function(v) State.NoClip = v end,
 })
 
-print("[BluhavenHub] Loaded!")
+-- ═══════════════════════════════════
+-- LOADED NOTIFY
+-- ═══════════════════════════════════
+Window:Notify({
+    Title = "BluhavenHub",
+    Content = "Anime Dice Script loaded! (Ocean Theme)",
+    Duration = 5,
+})
+
+print("[BluhavenHub] Loaded! (WindUI Ocean)")
