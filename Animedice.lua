@@ -1,5 +1,5 @@
 -- BluhavenHub | Anime Dice
--- WindUI Ocean Theme + Custom Icon
+-- WindUI Ocean Theme + Fixed Auto Roll & Tower
 
 local WindUI = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
@@ -7,9 +7,6 @@ local WindUI = loadstring(game:HttpGet(
 
 local ICON = "rbxassetid://71760811781401"
 
--- ═══════════════════════════════════
--- THEME OCEAN
--- ═══════════════════════════════════
 pcall(function()
     WindUI:AddTheme({
         Name = "Ocean",
@@ -23,7 +20,6 @@ pcall(function()
     })
 end)
 
--- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -36,9 +32,6 @@ local Character = LP.Character or LP.CharacterAdded:Wait()
 local HRP = Character:WaitForChild("HumanoidRootPart")
 local Humanoid = Character:WaitForChild("Humanoid")
 
--- ═══════════════════════════════════
--- STATE
--- ═══════════════════════════════════
 local State = {
     HybridAutoRoll    = false,
     ServerAutoRoll    = false,
@@ -46,7 +39,6 @@ local State = {
     AutoEquipDice     = false,
     AutoEquipUnits    = false,
     AutoLevelSlots    = false,
-    AutoBuyUpgrades   = false,
     UnitESP           = false,
     PlotESP           = false,
     PlayerESP         = false,
@@ -60,21 +52,67 @@ local State = {
 }
 
 -- ═══════════════════════════════════
--- REMOTES
+-- REMOTE FINDER (FLEXIBLE)
 -- ═══════════════════════════════════
-local Network = ReplicatedStorage:WaitForChild("Network")
+local Network = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:WaitForChild("Network", 10)
 
-local RollRemote = Network:WaitForChild("RollService"):WaitForChild("RF"):WaitForChild("RollDice")
-local EquipBestRemote = Network:WaitForChild("PlotService"):WaitForChild("RE"):WaitForChild("EquipBest")
-local LevelUpSlotRemote = Network:WaitForChild("PlotService"):WaitForChild("RE"):WaitForChild("LevelUpSlot")
-local BuyDiceRemote = Network:WaitForChild("DiceShopService"):WaitForChild("RE"):WaitForChild("BuyDice")
-local TowerService = Network:WaitForChild("Towers")
-local EquipBestTowerRemote = TowerService:WaitForChild("RE"):WaitForChild("EquipBestTowerTeam")
-local PlayTowerRemote = TowerService:WaitForChild("RF"):WaitForChild("PlayTower")
+local function findRemote(root, ...)
+    if not root then return nil end
+    local current = root
+    for _, name in ipairs({...}) do
+        if not current then return nil end
+        current = current:FindFirstChild(name)
+    end
+    return current
+end
 
--- ═══════════════════════════════════
--- DICE LIST
--- ═══════════════════════════════════
+-- Cari remote dengan fallback di beberapa path
+local function findByPattern(root, pattern)
+    if not root then return nil end
+    for _, obj in ipairs(root:GetDescendants()) do
+        if obj.Name == pattern then
+            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+                return obj
+            end
+        end
+    end
+    return nil
+end
+
+-- Roll Remote — coba beberapa path
+local RollRemote = findRemote(Network, "RollService", "RF", "RollDice")
+    or findByPattern(Network, "RollDice")
+    or findByPattern(ReplicatedStorage, "RollDice")
+
+-- Equip Best
+local EquipBestRemote = findRemote(Network, "PlotService", "RE", "EquipBest")
+    or findByPattern(Network, "EquipBest")
+
+-- Level Up Slot
+local LevelUpSlotRemote = findRemote(Network, "PlotService", "RE", "LevelUpSlot")
+    or findByPattern(Network, "LevelUpSlot")
+
+-- Buy Dice
+local BuyDiceRemote = findRemote(Network, "DiceShopService", "RE", "BuyDice")
+    or findByPattern(Network, "BuyDice")
+
+-- Tower
+local TowerService = Network and Network:FindFirstChild("Towers")
+local EquipBestTowerRemote = findRemote(TowerService, "RE", "EquipBestTowerTeam")
+    or findByPattern(Network, "EquipBestTowerTeam")
+local PlayTowerRemote = findRemote(TowerService, "RF", "PlayTower")
+    or findByPattern(Network, "PlayTower")
+    or findByPattern(Network, "PlayTower")
+
+-- Debug info
+print("[BluhavenHub] Remote check:")
+print("  RollDice:", RollRemote)
+print("  EquipBest:", EquipBestRemote)
+print("  LevelUpSlot:", LevelUpSlotRemote)
+print("  BuyDice:", BuyDiceRemote)
+print("  EquipBestTower:", EquipBestTowerRemote)
+print("  PlayTower:", PlayTowerRemote)
+
 local ALL_DICE = {
     "Light", "Toxic", "Cyber", "Frostfire", "Alchemy",
     "Chrono", "Arcane", "Titan", "Corrupted", "Radiant",
@@ -85,53 +123,120 @@ local ALL_DICE = {
 local TOTAL_SLOTS = 4
 
 -- ═══════════════════════════════════
--- FUNCTIONS
+-- FUNCTIONS (FIXED)
 -- ═══════════════════════════════════
 local function doRoll()
-    pcall(function() RollRemote:InvokeServer() end)
+    if not RollRemote then return false end
+    local ok = pcall(function()
+        if RollRemote:IsA("RemoteFunction") then
+            RollRemote:InvokeServer()
+        else
+            RollRemote:FireServer()
+        end
+    end)
+    return ok
 end
 
+-- Hybrid: cari semua kemungkinan button
 local function hybridRoll()
-    local btn = LP.PlayerGui:FindFirstChild("RollButton", true) or LP.PlayerGui:FindFirstChild("Roll", true)
-    if btn and btn:IsA("GuiButton") then
-        btn.MouseButton1Click:Fire()
+    -- Cari button di PlayerGui
+    local btn = nil
+    for _, gui in ipairs(LP.PlayerGui:GetDescendants()) do
+        if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+            local name = gui.Name:lower()
+            if name:find("roll") or name:find("reroll") then
+                btn = gui
+                break
+            end
+        end
+    end
+    
+    if btn then
+        local ok = pcall(function()
+            if firesignal then
+                firesignal(btn.MouseButton1Click)
+            elseif fireclickdetector then
+                -- fallback: manual click sim
+                btn.MouseButton1Click:Fire()
+            else
+                btn.MouseButton1Click:Fire()
+            end
+        end)
+        if not ok then
+            doRoll()
+        end
     else
         doRoll()
     end
 end
 
 local function doEquipBest()
-    pcall(function() EquipBestRemote:FireServer() end)
+    if not EquipBestRemote then return end
+    pcall(function()
+        if EquipBestRemote:IsA("RemoteFunction") then
+            EquipBestRemote:InvokeServer()
+        else
+            EquipBestRemote:FireServer()
+        end
+    end)
 end
 
 local function doLevelUpAllSlots()
+    if not LevelUpSlotRemote then return end
     for slot = 1, TOTAL_SLOTS do
         if not State.AutoLevelSlots then break end
-        pcall(function() LevelUpSlotRemote:FireServer(slot) end)
+        pcall(function()
+            if LevelUpSlotRemote:IsA("RemoteFunction") then
+                LevelUpSlotRemote:InvokeServer(slot)
+            else
+                LevelUpSlotRemote:FireServer(slot)
+            end
+        end)
         task.wait(0.2)
     end
 end
 
 local function doAutoBuyDice()
+    if not BuyDiceRemote then return end
     for _, diceName in ipairs(ALL_DICE) do
         if not State.AutoBuyDice then break end
         if #State.DiceAllowlist == 0 or table.find(State.DiceAllowlist, diceName) then
-            pcall(function() BuyDiceRemote:FireServer(diceName) end)
+            pcall(function()
+                if BuyDiceRemote:IsA("RemoteFunction") then
+                    BuyDiceRemote:InvokeServer(diceName)
+                else
+                    BuyDiceRemote:FireServer(diceName)
+                end
+            end)
             task.wait(0.3)
         end
     end
 end
 
 local function doEquipBestTower()
-    pcall(function() EquipBestTowerRemote:FireServer() end)
+    if not EquipBestTowerRemote then return end
+    pcall(function()
+        if EquipBestTowerRemote:IsA("RemoteFunction") then
+            EquipBestTowerRemote:InvokeServer()
+        else
+            EquipBestTowerRemote:FireServer()
+        end
+    end)
 end
 
 local function doFight()
-    pcall(function() PlayTowerRemote:InvokeServer(State.SelectedTower) end)
+    if not PlayTowerRemote then return end
+    pcall(function()
+        if PlayTowerRemote:IsA("RemoteFunction") then
+            PlayTowerRemote:InvokeServer(State.SelectedTower)
+        else
+            PlayTowerRemote:FireServer(State.SelectedTower)
+        end
+    end)
 end
 
 -- ═══════════════════════════════════
--- ESP AURA
+-- ESP
 -- ═══════════════════════════════════
 local ESPFolder = Instance.new("Folder", Workspace)
 ESPFolder.Name = "BluhavenESP"
@@ -149,7 +254,6 @@ local function createAura(target, fillColor, outlineColor, label, transparency)
     if not target or not target.Parent then return end
     local key = tostring(target)
     if activeAuras[key] then return end
-
     local hl = Instance.new("Highlight")
     hl.Adornee = target
     hl.FillColor = fillColor
@@ -158,13 +262,11 @@ local function createAura(target, fillColor, outlineColor, label, transparency)
     hl.OutlineTransparency = 0
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     hl.Parent = ESPFolder
-
     local bb = Instance.new("BillboardGui")
     bb.Size = UDim2.new(0, 120, 0, 28)
     bb.StudsOffset = Vector3.new(0, 4, 0)
     bb.AlwaysOnTop = true
     bb.Parent = target
-
     local lbl = Instance.new("TextLabel", bb)
     lbl.Size = UDim2.new(1, 0, 1, 0)
     lbl.BackgroundTransparency = 1
@@ -173,7 +275,6 @@ local function createAura(target, fillColor, outlineColor, label, transparency)
     lbl.TextStrokeTransparency = 0
     lbl.Font = Enum.Font.GothamBold
     lbl.TextScaleType = Enum.TextScaleType.Fit
-
     activeAuras[key] = { hl = hl, bb = bb }
 end
 
@@ -183,7 +284,7 @@ local function updateESP()
         if units then
             for _, u in ipairs(units:GetDescendants()) do
                 if u:IsA("Model") then
-                    createAura(u, Color3.fromRGB(0,200,100), Color3.fromRGB(0,255,150), "⚔ " .. u.Name, 0.5)
+                    createAura(u, Color3.fromRGB(0,200,100), Color3.fromRGB(0,255,150), "Unit: " .. u.Name, 0.5)
                 end
             end
         end
@@ -195,7 +296,7 @@ local function updateESP()
                 if p:IsA("Model") then
                     local owner = p:FindFirstChild("Owner")
                     local ownerName = owner and owner.Value or "Empty"
-                    createAura(p, Color3.fromRGB(200,150,0), Color3.fromRGB(255,200,0), "🏠 " .. ownerName, 0.5)
+                    createAura(p, Color3.fromRGB(200,150,0), Color3.fromRGB(255,200,0), "Plot: " .. ownerName, 0.5)
                 end
             end
         end
@@ -203,7 +304,7 @@ local function updateESP()
     if State.PlayerESP then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP and plr.Character then
-                createAura(plr.Character, Color3.fromRGB(200,0,0), Color3.fromRGB(255,80,80), "👤 " .. plr.Name, 0.4)
+                createAura(plr.Character, Color3.fromRGB(200,0,0), Color3.fromRGB(255,80,80), plr.Name, 0.4)
             end
         end
     end
@@ -289,7 +390,7 @@ LP.CharacterAdded:Connect(function(char)
 end)
 
 -- ═══════════════════════════════════
--- WINDUI WINDOW (OCEAN THEME)
+-- WINDUI WINDOW
 -- ═══════════════════════════════════
 local Window = WindUI:CreateWindow({
     Title = "BluhavenHub",
@@ -306,7 +407,6 @@ local Window = WindUI:CreateWindow({
     MinimizeButton = true,
 })
 
--- Hapus watermark Eulen
 task.spawn(function()
     while task.wait(1) do
         pcall(function()
@@ -315,9 +415,7 @@ task.spawn(function()
                 local ok, hui = pcall(gethui)
                 if ok and hui then table.insert(containers, hui) end
             end
-            pcall(function()
-                if LP then table.insert(containers, LP:WaitForChild("PlayerGui")) end
-            end)
+            pcall(function() table.insert(containers, LP:WaitForChild("PlayerGui")) end)
             for _, container in pairs(containers) do
                 for _, gui in pairs(container:GetChildren()) do
                     if gui.Name:lower():find("bluhaven") then continue end
@@ -338,22 +436,28 @@ task.spawn(function()
 end)
 
 -- ═══════════════════════════════════
--- TAB: ROLL
+-- TAB: ROLL (ICON ASSET)
 -- ═══════════════════════════════════
 local TabRoll = Window:Tab({ Title = "Roll", Icon = ICON })
 local SectRoll = TabRoll:Section({ Title = "Auto Roll", Icon = ICON })
 
 SectRoll:Toggle({
     Title = "Hybrid Auto Roll",
-    Desc = "GUI click + server fallback",
+    Desc = "Auto click button roll + fallback",
     Value = false,
-    Callback = function(v) State.HybridAutoRoll = v end,
+    Callback = function(v)
+        State.HybridAutoRoll = v
+        Window:Notify({Title="Auto Roll", Content=v and "ON" or "OFF", Duration=2})
+    end,
 })
 SectRoll:Toggle({
     Title = "Server-Sided Auto Roll",
-    Desc = "Pure server invoke",
+    Desc = "Invoke remote langsung",
     Value = false,
-    Callback = function(v) State.ServerAutoRoll = v end,
+    Callback = function(v)
+        State.ServerAutoRoll = v
+        Window:Notify({Title="Server Roll", Content=v and "ON" or "OFF", Duration=2})
+    end,
 })
 SectRoll:Slider({
     Title = "Roll Delay",
@@ -364,8 +468,11 @@ SectRoll:Slider({
 })
 SectRoll:Button({
     Title = "Manual Instant Roll",
-    Desc = "Roll sekali langsung",
-    Callback = function() doRoll() end,
+    Desc = "Roll sekali langsung (test)",
+    Callback = function()
+        local ok = doRoll()
+        Window:Notify({Title="Manual Roll", Content=ok and "Sent!" or "FAILED - remote not found", Duration=3})
+    end,
 })
 
 -- ═══════════════════════════════════
@@ -376,19 +483,19 @@ local SectDice = TabDice:Section({ Title = "Dice Management", Icon = ICON })
 
 SectDice:Toggle({
     Title = "Auto Buy Best Affordable Dice",
-    Desc = "Beli semua dice yang ada",
+    Desc = "Beli semua dice",
     Value = false,
     Callback = function(v) State.AutoBuyDice = v end,
 })
 SectDice:Toggle({
     Title = "Auto Equip Best Dice",
-    Desc = "Equip dice terkuat otomatis",
+    Desc = "Equip dice terkuat",
     Value = false,
     Callback = function(v) State.AutoEquipDice = v end,
 })
 SectDice:Input({
     Title = "Dice Allowlist",
-    Desc = "Pisah dengan koma. Kosongin = beli semua",
+    Desc = "Pisah koma. Kosong = beli semua",
     Placeholder = "Void,Blood Moon,Galaxy",
     Value = "",
     Callback = function(v)
@@ -407,19 +514,19 @@ local SectUnits = TabUnits:Section({ Title = "Unit Management", Icon = ICON })
 
 SectUnits:Toggle({
     Title = "Auto Equip Best Units",
-    Desc = "Equip unit terkuat otomatis",
+    Desc = "Equip unit terkuat",
     Value = false,
     Callback = function(v) State.AutoEquipUnits = v end,
 })
 SectUnits:Toggle({
     Title = "Auto Level Occupied Slots",
-    Desc = "Level up slot 1-4 otomatis",
+    Desc = "Level up slot 1-4",
     Value = false,
     Callback = function(v) State.AutoLevelSlots = v end,
 })
 SectUnits:Button({
     Title = "Manual Level Up All Slots",
-    Desc = "Level up semua slot sekali",
+    Desc = "Level up slot sekali",
     Callback = function() doLevelUpAllSlots() end,
 })
 
@@ -431,7 +538,7 @@ local SectTower = TabTower:Section({ Title = "Tower & Fight", Icon = ICON })
 
 SectTower:Toggle({
     Title = "Auto Equip Best Tower Team",
-    Desc = "Equip team tower terkuat sebelum fight",
+    Desc = "Equip team terkuat",
     Value = false,
     Callback = function(v) State.AutoEquipBestTower = v end,
 })
@@ -439,7 +546,10 @@ SectTower:Toggle({
     Title = "Auto Fight",
     Desc = "Loop fight otomatis",
     Value = false,
-    Callback = function(v) State.AutoFight = v end,
+    Callback = function(v)
+        State.AutoFight = v
+        Window:Notify({Title="Auto Fight", Content=v and "ON" or "OFF", Duration=2})
+    end,
 })
 SectTower:Input({
     Title = "Tower Name",
@@ -452,16 +562,20 @@ SectTower:Input({
 })
 SectTower:Button({
     Title = "Manual Equip Best Tower",
-    Desc = "Equip team tower sekali",
-    Callback = function() doEquipBestTower() end,
+    Desc = "Equip team sekali",
+    Callback = function()
+        doEquipBestTower()
+        Window:Notify({Title="Equip Tower", Content="Sent!", Duration=2})
+    end,
 })
 SectTower:Button({
     Title = "Manual Fight Once",
-    Desc = "Fight sekali langsung",
+    Desc = "Fight sekali (test)",
     Callback = function()
         doEquipBestTower()
         task.wait(0.3)
-        doFight()
+        local ok = pcall(function() doFight() end)
+        Window:Notify({Title="Manual Fight", Content=ok and ("Sent: " .. State.SelectedTower) or "FAILED", Duration=3})
     end,
 })
 
@@ -473,7 +587,7 @@ local SectESP = TabESP:Section({ Title = "ESP Aura", Icon = ICON })
 
 SectESP:Toggle({
     Title = "Unit ESP",
-    Desc = "Aura hijau pada semua unit",
+    Desc = "Aura hijau pada unit",
     Value = false,
     Callback = function(v)
         State.UnitESP = v
@@ -482,7 +596,7 @@ SectESP:Toggle({
 })
 SectESP:Toggle({
     Title = "Plot ESP",
-    Desc = "Aura kuning pada semua plot",
+    Desc = "Aura kuning pada plot",
     Value = false,
     Callback = function(v)
         State.PlotESP = v
@@ -491,7 +605,7 @@ SectESP:Toggle({
 })
 SectESP:Toggle({
     Title = "Player ESP",
-    Desc = "Aura merah pada semua player",
+    Desc = "Aura merah pada player",
     Value = false,
     Callback = function(v)
         State.PlayerESP = v
@@ -507,13 +621,13 @@ local SectMove = TabMove:Section({ Title = "Movement", Icon = ICON })
 
 SectMove:Toggle({
     Title = "Infinite Jump",
-    Desc = "Lompat terus tanpa batas",
+    Desc = "Lompat tanpa batas",
     Value = false,
     Callback = function(v) State.InfiniteJump = v end,
 })
 SectMove:Toggle({
     Title = "NoClip",
-    Desc = "Tembus semua objek",
+    Desc = "Tembus objek",
     Value = false,
     Callback = function(v) State.NoClip = v end,
 })
@@ -523,7 +637,7 @@ SectMove:Toggle({
 -- ═══════════════════════════════════
 Window:Notify({
     Title = "BluhavenHub",
-    Content = "Anime Dice Script loaded! (Ocean Theme)",
+    Content = "Loaded! Cek console F9 untuk remote status.",
     Duration = 5,
 })
 
