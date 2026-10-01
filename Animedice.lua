@@ -33,7 +33,6 @@ local HRP = Character:WaitForChild("HumanoidRootPart")
 local Humanoid = Character:WaitForChild("Humanoid")
 
 local State = {
-    HybridAutoRoll    = false,
     ServerAutoRoll    = false,
     AutoBuyDice       = false,
     AutoEquipDice     = false,
@@ -44,15 +43,12 @@ local State = {
     PlayerESP         = false,
     InfiniteJump      = false,
     NoClip            = false,
-    AutoEquipBestTower= false,
-    AutoFight         = false,
-    RollDelay         = 0.5,
+    RollDelay         = 1,
     DiceAllowlist     = {},
-    SelectedTower     = "Slayer Tower",
 }
 
 -- ═══════════════════════════════════
--- REMOTE FINDER (FLEXIBLE)
+-- REMOTE FINDER
 -- ═══════════════════════════════════
 local Network = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:WaitForChild("Network", 10)
 
@@ -66,7 +62,6 @@ local function findRemote(root, ...)
     return current
 end
 
--- Cari remote dengan fallback di beberapa path
 local function findByPattern(root, pattern)
     if not root then return nil end
     for _, obj in ipairs(root:GetDescendants()) do
@@ -79,39 +74,21 @@ local function findByPattern(root, pattern)
     return nil
 end
 
--- Roll Remote — coba beberapa path
 local RollRemote = findRemote(Network, "RollService", "RF", "RollDice")
     or findByPattern(Network, "RollDice")
     or findByPattern(ReplicatedStorage, "RollDice")
 
--- Equip Best
 local EquipBestRemote = findRemote(Network, "PlotService", "RE", "EquipBest")
     or findByPattern(Network, "EquipBest")
 
--- Level Up Slot
 local LevelUpSlotRemote = findRemote(Network, "PlotService", "RE", "LevelUpSlot")
     or findByPattern(Network, "LevelUpSlot")
 
--- Buy Dice
 local BuyDiceRemote = findRemote(Network, "DiceShopService", "RE", "BuyDice")
     or findByPattern(Network, "BuyDice")
 
--- Tower
-local TowerService = Network and Network:FindFirstChild("Towers")
-local EquipBestTowerRemote = findRemote(TowerService, "RE", "EquipBestTowerTeam")
-    or findByPattern(Network, "EquipBestTowerTeam")
-local PlayTowerRemote = findRemote(TowerService, "RF", "PlayTower")
-    or findByPattern(Network, "PlayTower")
-    or findByPattern(Network, "PlayTower")
-
--- Debug info
-print("[BluhavenHub] Remote check:")
-print("  RollDice:", RollRemote)
-print("  EquipBest:", EquipBestRemote)
-print("  LevelUpSlot:", LevelUpSlotRemote)
-print("  BuyDice:", BuyDiceRemote)
-print("  EquipBestTower:", EquipBestTowerRemote)
-print("  PlayTower:", PlayTowerRemote)
+print("[BluhavenHub] RollRemote:", RollRemote)
+print("[BluhavenHub] EquipBestRemote:", EquipBestRemote)
 
 local ALL_DICE = {
     "Light", "Toxic", "Cyber", "Frostfire", "Alchemy",
@@ -123,7 +100,7 @@ local ALL_DICE = {
 local TOTAL_SLOTS = 4
 
 -- ═══════════════════════════════════
--- FUNCTIONS (FIXED)
+-- FUNCTIONS
 -- ═══════════════════════════════════
 local function doRoll()
     if not RollRemote then return false end
@@ -135,39 +112,6 @@ local function doRoll()
         end
     end)
     return ok
-end
-
--- Hybrid: cari semua kemungkinan button
-local function hybridRoll()
-    -- Cari button di PlayerGui
-    local btn = nil
-    for _, gui in ipairs(LP.PlayerGui:GetDescendants()) do
-        if gui:IsA("TextButton") or gui:IsA("ImageButton") then
-            local name = gui.Name:lower()
-            if name:find("roll") or name:find("reroll") then
-                btn = gui
-                break
-            end
-        end
-    end
-    
-    if btn then
-        local ok = pcall(function()
-            if firesignal then
-                firesignal(btn.MouseButton1Click)
-            elseif fireclickdetector then
-                -- fallback: manual click sim
-                btn.MouseButton1Click:Fire()
-            else
-                btn.MouseButton1Click:Fire()
-            end
-        end)
-        if not ok then
-            doRoll()
-        end
-    else
-        doRoll()
-    end
 end
 
 local function doEquipBest()
@@ -211,28 +155,6 @@ local function doAutoBuyDice()
             task.wait(0.3)
         end
     end
-end
-
-local function doEquipBestTower()
-    if not EquipBestTowerRemote then return end
-    pcall(function()
-        if EquipBestTowerRemote:IsA("RemoteFunction") then
-            EquipBestTowerRemote:InvokeServer()
-        else
-            EquipBestTowerRemote:FireServer()
-        end
-    end)
-end
-
-local function doFight()
-    if not PlayTowerRemote then return end
-    pcall(function()
-        if PlayTowerRemote:IsA("RemoteFunction") then
-            PlayTowerRemote:InvokeServer(State.SelectedTower)
-        else
-            PlayTowerRemote:FireServer(State.SelectedTower)
-        end
-    end)
 end
 
 -- ═══════════════════════════════════
@@ -318,10 +240,7 @@ end
 -- ═══════════════════════════════════
 task.spawn(function()
     while true do
-        if State.HybridAutoRoll then
-            hybridRoll()
-            task.wait(State.RollDelay)
-        elseif State.ServerAutoRoll then
+        if State.ServerAutoRoll then
             doRoll()
             task.wait(State.RollDelay)
         else
@@ -348,20 +267,6 @@ task.spawn(function()
     while true do
         if State.AutoBuyDice then doAutoBuyDice() end
         task.wait(2)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if State.AutoFight then
-            if State.AutoEquipBestTower then
-                doEquipBestTower()
-                task.wait(0.5)
-            end
-            doFight()
-            task.wait(2)
-        end
-        task.wait(0.5)
     end
 end)
 
@@ -436,33 +341,24 @@ task.spawn(function()
 end)
 
 -- ═══════════════════════════════════
--- TAB: ROLL (ICON ASSET)
+-- TAB: ROLL
 -- ═══════════════════════════════════
 local TabRoll = Window:Tab({ Title = "Roll", Icon = ICON })
 local SectRoll = TabRoll:Section({ Title = "Auto Roll", Icon = ICON })
 
-SectRoll:Toggle({
-    Title = "Hybrid Auto Roll",
-    Desc = "Auto click button roll + fallback",
-    Value = false,
-    Callback = function(v)
-        State.HybridAutoRoll = v
-        Window:Notify({Title="Auto Roll", Content=v and "ON" or "OFF", Duration=2})
-    end,
-})
 SectRoll:Toggle({
     Title = "Server-Sided Auto Roll",
     Desc = "Invoke remote langsung",
     Value = false,
     Callback = function(v)
         State.ServerAutoRoll = v
-        Window:Notify({Title="Server Roll", Content=v and "ON" or "OFF", Duration=2})
+        Window:Notify({Title="Auto Roll", Content=v and "ON" or "OFF", Duration=2})
     end,
 })
 SectRoll:Slider({
     Title = "Roll Delay",
     Desc = "Delay antar roll (detik)",
-    Value = { Min = 0.05, Max = 3, Default = 0.5 },
+    Value = { Min = 0.05, Max = 3, Default = 1 },
     Rounding = 2,
     Callback = function(v) State.RollDelay = v end,
 })
@@ -531,51 +427,55 @@ SectUnits:Button({
 })
 
 -- ═══════════════════════════════════
--- TAB: TOWER
+-- TAB: TOWER (MAINTENANCE)
 -- ═══════════════════════════════════
 local TabTower = Window:Tab({ Title = "Tower", Icon = ICON })
 local SectTower = TabTower:Section({ Title = "Tower & Fight", Icon = ICON })
 
+SectTower:Paragraph({
+    Title = "🔧 Maintenance",
+    Desc = "Tower feature sedang dalam perbaikan. Akan segera hadir kembali.",
+})
+
 SectTower:Toggle({
     Title = "Auto Equip Best Tower Team",
-    Desc = "Equip team terkuat",
+    Desc = "[MAINTENANCE] Fitur belum tersedia",
     Value = false,
-    Callback = function(v) State.AutoEquipBestTower = v end,
+    Callback = function(v)
+        if v then
+            Window:Notify({Title="Tower", Content="Feature under maintenance", Duration=3})
+        end
+    end,
 })
 SectTower:Toggle({
     Title = "Auto Fight",
-    Desc = "Loop fight otomatis",
+    Desc = "[MAINTENANCE] Fitur belum tersedia",
     Value = false,
     Callback = function(v)
-        State.AutoFight = v
-        Window:Notify({Title="Auto Fight", Content=v and "ON" or "OFF", Duration=2})
+        if v then
+            Window:Notify({Title="Tower", Content="Feature under maintenance", Duration=3})
+        end
     end,
 })
 SectTower:Input({
     Title = "Tower Name",
-    Desc = "Nama tower yang mau difight",
+    Desc = "[MAINTENANCE] Belum berfungsi",
     Placeholder = "Slayer Tower",
     Value = "Slayer Tower",
-    Callback = function(v)
-        if v ~= "" then State.SelectedTower = v end
-    end,
+    Callback = function(v) end,
 })
 SectTower:Button({
     Title = "Manual Equip Best Tower",
-    Desc = "Equip team sekali",
+    Desc = "[MAINTENANCE]",
     Callback = function()
-        doEquipBestTower()
-        Window:Notify({Title="Equip Tower", Content="Sent!", Duration=2})
+        Window:Notify({Title="Tower", Content="Feature under maintenance", Duration=3})
     end,
 })
 SectTower:Button({
     Title = "Manual Fight Once",
-    Desc = "Fight sekali (test)",
+    Desc = "[MAINTENANCE]",
     Callback = function()
-        doEquipBestTower()
-        task.wait(0.3)
-        local ok = pcall(function() doFight() end)
-        Window:Notify({Title="Manual Fight", Content=ok and ("Sent: " .. State.SelectedTower) or "FAILED", Duration=3})
+        Window:Notify({Title="Tower", Content="Feature under maintenance", Duration=3})
     end,
 })
 
@@ -637,7 +537,7 @@ SectMove:Toggle({
 -- ═══════════════════════════════════
 Window:Notify({
     Title = "BluhavenHub",
-    Content = "Loaded! Cek console F9 untuk remote status.",
+    Content = "Loaded! Tower feature is under maintenance.",
     Duration = 5,
 })
 
